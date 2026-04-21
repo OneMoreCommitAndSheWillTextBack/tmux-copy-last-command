@@ -34,6 +34,10 @@ def tmux(*args, **kwargs):
     return ""
 
 
+def inside_tmux():
+    return bool(os.environ.get("TMUX"))
+
+
 def state_dir():
     return Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "tmux-copy-last-command"
 
@@ -103,8 +107,9 @@ def extract_outputs(pane):
 
 
 def fail(message, exit_code=0):
-    if os.environ.get("TMUX"):
+    if inside_tmux():
         subprocess.run(["tmux", "display-message", message], check=False)
+        return 0
     else:
         sys.stderr.write(message + "\n")
     return exit_code
@@ -121,7 +126,7 @@ def main():
         details = (error.stderr or "").strip()
         if not details:
             details = "unable to query tmux pane state"
-        return fail(f"tmux-copy-last-command: {details}", exit_code=1)
+        return fail(f"tmux-copy-last-command: failed to inspect pane {pane}: {details}", exit_code=1)
 
     if pane_command not in SHELL_COMMANDS:
         return fail("Current pane is running '{0}'. Use this at a shell prompt.".format(pane_command or "unknown"))
@@ -171,4 +176,7 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except Exception as error:
+        sys.exit(fail(f"tmux-copy-last-command: unexpected error: {error}", exit_code=1))
